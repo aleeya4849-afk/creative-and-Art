@@ -1,0 +1,552 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>AnimForge — Browser Animation Studio</title>
+  <meta name="description" content="AnimForge — create and export generative animations in the browser (single-file)." />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root{--bg:#0f1724;--card:#0b1220;--muted:#94a3b8;--accent:#7c3aed;--glass:rgba(255,255,255,0.04);--glass-2:rgba(255,255,255,0.02);--radius:14px}
+    [data-theme='light']{--bg:#f6f8fb;--card:#ffffff;--muted:#51606a;--accent:#6b21a8;--glass:rgba(0,0,0,0.03);--glass-2:rgba(0,0,0,0.02)}
+    *{box-sizing:border-box;font-family:Inter,system-ui,Segoe UI,Roboto,'Helvetica Neue',Arial}
+    html,body{height:100%;margin:0;background:linear-gradient(180deg,var(--bg) 0%, color-mix(in srgb, var(--bg) 80%, #0000) 100%);color:var(--muted)}
+    header{display:flex;align-items:center;gap:12px;padding:18px 20px}
+    .logo{display:flex;align-items:center;gap:12px}
+    .logo .mark{width:44px;height:44px;border-radius:10px;background:conic-gradient(from 180deg at 50% 50%,var(--accent),#06b6d4,#f97316);box-shadow:0 6px 24px rgba(12,12,30,0.6);display:flex;align-items:center;justify-content:center;color:white;font-weight:700}
+    h1{font-size:18px;margin:0;color:var(--muted)}
+    .tag{font-size:12px;color:var(--muted);opacity:.9}
+    .container{display:grid;grid-template-columns:300px 1fr;gap:18px;padding:12px 20px}
+    .panel{background:var(--card);padding:14px;border-radius:var(--radius);box-shadow:0 6px 18px rgba(2,6,23,0.6)}
+    .sidebar{height:calc(100vh - 120px);overflow:auto}
+    .controls{display:flex;flex-direction:column;gap:10px}
+    label{font-size:13px;color:var(--muted);display:flex;flex-direction:column;gap:6px}
+    input[type='range']{width:100%}
+    select,input[type='text']{width:100%;padding:8px;border-radius:10px;border:1px solid rgba(255,255,255,0.04);background:var(--glass);color:var(--muted)}
+    .btn{display:inline-flex;align-items:center;gap:8px;padding:8px 12px;border-radius:10px;border:none;cursor:pointer;background:linear-gradient(180deg,var(--accent),color-mix(in srgb,var(--accent),black 10%));color:white;font-weight:600}
+    .btn.ghost{background:transparent;color:var(--muted);border:1px solid var(--glass)}
+    .toolbar{display:flex;gap:8px;flex-wrap:wrap}
+    .main{display:flex;flex-direction:column;gap:12px}
+    .canvas-wrap{position:relative;border-radius:12px;overflow:hidden;min-height:480px;background:radial-gradient(circle at 10% 10%, rgba(255,255,255,0.03), transparent 10%),var(--glass-2)}
+    canvas{display:block;width:100%;height:100%;background:transparent}
+    .overlay-ui{position:absolute;right:12px;top:12px;padding:8px;border-radius:10px;background:linear-gradient(180deg,rgba(0,0,0,0.25),rgba(255,255,255,0.02));backdrop-filter:blur(6px)}
+    .gallery{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+    .thumb{width:72px;height:48px;border-radius:6px;overflow:hidden;cursor:pointer;border:2px solid transparent}
+    .thumb img{width:100%;height:100%;object-fit:cover}
+    footer{padding:12px 20px;color:var(--muted);font-size:13px}
+    .prompt-box{white-space:pre-wrap;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;background:linear-gradient(180deg,var(--card),color-mix(in srgb,var(--card),black 6%));padding:12px;border-radius:10px;overflow:auto;max-height:180px}
+    .split{display:flex;gap:8px}
+    .muted{color:var(--muted);font-size:13px}
+    .small{font-size:12px}
+    .flex{display:flex;align-items:center;gap:8px}
+    .mode-pill{padding:6px 8px;border-radius:999px;background:var(--glass);font-weight:600}
+    @media (max-width:900px){.container{grid-template-columns:1fr;}.sidebar{height:auto}.canvas-wrap{min-height:360px}}
+  </style>
+</head>
+<body data-theme="dark">
+  <header>
+    <div class="logo">
+      <div class="mark" aria-hidden>AF</div>
+      <div>
+        <h1>AnimForge</h1>
+        <div class="tag small">Generative animations — create, tweak, export (single file)</div>
+      </div>
+    </div>
+    <div style="flex:1"></div>
+    <div class="flex">
+      <button id="themeToggle" class="btn ghost" aria-pressed="false">Toggle Theme</button>
+      <button id="promptBtn" class="btn">Show AI Prompt</button>
+    </div>
+  </header>
+
+  <div class="container">
+    <aside class="panel sidebar" aria-label="Controls">
+      <div class="controls">
+        <label>Mode
+          <select id="modeSelect" aria-label="Mode select">
+            <option value="particles">Particles</option>
+            <option value="flow">Flow Lines</option>
+            <option value="mosaic">Mosaic</option>
+          </select>
+        </label>
+
+        <label>Seed (empty = random)
+          <input id="seedInput" type="text" placeholder="e.g. aurora-42" aria-label="seed input">
+        </label>
+
+        <label>Density
+          <input id="densityRange" type="range" min="10" max="1000" value="120" aria-label="density">
+        </label>
+
+        <label>Speed
+          <input id="speedRange" type="range" min="0.1" max="4" step="0.1" value="1" aria-label="speed">
+        </label>
+
+        <label>Palette
+          <select id="paletteSelect" aria-label="palette">
+            <option value="aurora">Aurora</option>
+            <option value="sunset">Sunset</option>
+            <option value="ocean">Ocean</option>
+            <option value="mono">Monochrome</option>
+          </select>
+        </label>
+
+        <div class="toolbar" role="toolbar" aria-label="Play controls">
+          <button id="playBtn" class="btn">Play</button>
+          <button id="pauseBtn" class="btn ghost">Pause</button>
+          <button id="randomizeBtn" class="btn">Randomize</button>
+          <button id="resetBtn" class="btn ghost">Reset</button>
+        </div>
+
+        <div class="toolbar">
+          <button id="snapshotBtn" class="btn">Snapshot PNG</button>
+          <button id="recordBtn" class="btn">Record (WebM)</button>
+        </div>
+
+        <div>
+          <label class="small">Presets</label>
+          <div class="split">
+            <button class="btn ghost preset" data-preset="calm">Calm</button>
+            <button class="btn ghost preset" data-preset="vivid">Vivid</button>
+            <button class="btn ghost preset" data-preset="chaos">Chaos</button>
+          </div>
+        </div>
+
+        <div>
+          <label class="small">Session Gallery</label>
+          <div id="gallery" class="gallery" aria-live="polite"></div>
+        </div>
+
+        <div style="margin-top:8px">
+          <label class="small">Keyboard</label>
+          <div class="muted small">Space = Play/Pause • R = Randomize • S = Snapshot</div>
+        </div>
+      </div>
+    </aside>
+
+    <main class="main panel" aria-label="Main canvas area">
+      <div class="canvas-wrap" id="canvasWrap">
+        <canvas id="animCanvas" width="1200" height="700" role="img" aria-label="Animation canvas"></canvas>
+        <div class="overlay-ui" id="overlayUI" aria-hidden>
+          <div class="mode-pill" id="modePill">Mode: Particles</div>
+          <div class="muted small" id="status">Idle</div>
+        </div>
+      </div>
+
+      <div class="split">
+        <div style="flex:1">
+          <div class="muted small">Description</div>
+          <div class="muted">AnimForge creates procedural animations using lightweight algorithms. The generation is deterministic when a seed is provided.</div>
+        </div>
+        <div style="width:300px">
+          <div class="muted small">Export / Tips</div>
+          <ul class="muted small">
+            <li>Use "Record" to capture a WebM of the animation (MediaRecorder must be supported).</li>
+            <li>Saved thumbnails are kept only for the session (in memory).</li>
+            <li>To reproduce, use the same Mode + Seed + Palette + Density + Speed.</li>
+          </ul>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <footer>
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <div>Made with ❤️ • MIT License • AnimForge</div>
+      <div class="muted small">Educational demo — not a real ML model (simulated AI)</div>
+    </div>
+  </footer>
+
+  <!-- AI PROMPT: visible block when user clicks 'Show AI Prompt' -->
+  <dialog id="promptDialog" aria-labelledby="promptTitle">
+    <form method="dialog" style="width:min(900px,95vw);">
+      <h3 id="promptTitle">AI Prompt (copy this to an AI code-writer)</h3>
+      <div class="prompt-box" id="promptBox" tabindex="0"></div>
+      <menu style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px">
+        <button id="copyPrompt" class="btn" type="button">Copy Prompt</button>
+        <button class="btn ghost" type="submit">Close</button>
+      </menu>
+    </form>
+  </dialog>
+
+  <script>
+  /*************************************************************************
+   * AnimForge - Single-file web app
+   * Author: ChatGPT
+   * License: MIT
+   *
+   * Top of file contains a user-facing AI prompt which you can copy (see promptText below).
+   * The code below implements three generative animation modes, a seeded PRNG,
+   * progressive rendering, session gallery, and export (snapshot + WebM recording).
+   *
+   * SIMULATED AI: the "AI" behavior is algorithmic and deterministic using templates and procedural generation.
+   * This keeps everything offline with no external ML calls.
+   *************************************************************************/
+
+  // ---------------------- AI PROMPT (for other code-generators) ----------------------
+  const promptText = `Build a single-file, production-ready index.html web app called "AnimForge" — a browser-based generative animation studio. The single HTML file must include all HTML/CSS/JS inline and run fully offline. Focus on an animated, accessible UI and three demo modes (Particles, Flow Lines, Mosaic). Each mode must support: seed-based deterministic generation, density and speed controls, color palette selection, progressive animated reveal, pause/resume, and export (snapshot PNG and recording via MediaRecorder as WebM). Include a seedable pseudo-random number generator, a session thumbnail gallery, presets, and a "Surprise me" randomize button. Provide animated transitions, theme (dark/light) toggle, accessible ARIA labels, keyboard shortcuts, and detailed inline comments showing where to replace algorithmic generation with real ML models. Optimize for performance (don't use big libraries), and include graceful fallback messages when APIs are unavailable. End with an "About / Credits" footer and license (MIT).`;
+  // -----------------------------------------------------------------------------------
+
+  // Put the prompt into the dialog box for easy copy
+  document.addEventListener('DOMContentLoaded', ()=>{
+    const promptBox = document.getElementById('promptBox');
+    promptBox.textContent = promptText;
+  });
+
+  // ---------------------- Utilities: Seeded PRNG ----------------------
+  // Simple xorshift32 PRNG for repeatable results when given a string seed.
+  function sdbmHash(str){let h=0;for(let i=0;i<str.length;i++){h = str.charCodeAt(i) + (h<<6) + (h<<16) - h;}return h>>>0}
+  function xorshift32(seed){
+    let x = seed || Math.floor(Math.random()*0xffffffff);
+    return function(){
+      x ^= x << 13; x ^= x >>> 17; x ^= x << 5; return (x >>> 0) / 4294967295;
+    }
+  }
+
+  // ---------------------- DOM refs ----------------------
+  const canvas = document.getElementById('animCanvas');
+  const ctx = canvas.getContext('2d');
+  const modeSelect = document.getElementById('modeSelect');
+  const densityRange = document.getElementById('densityRange');
+  const speedRange = document.getElementById('speedRange');
+  const paletteSelect = document.getElementById('paletteSelect');
+  const seedInput = document.getElementById('seedInput');
+  const playBtn = document.getElementById('playBtn');
+  const pauseBtn = document.getElementById('pauseBtn');
+  const randomizeBtn = document.getElementById('randomizeBtn');
+  const resetBtn = document.getElementById('resetBtn');
+  const snapshotBtn = document.getElementById('snapshotBtn');
+  const recordBtn = document.getElementById('recordBtn');
+  const gallery = document.getElementById('gallery');
+  const modePill = document.getElementById('modePill');
+  const status = document.getElementById('status');
+  const themeToggle = document.getElementById('themeToggle');
+  const promptBtn = document.getElementById('promptBtn');
+  const promptDialog = document.getElementById('promptDialog');
+  const copyPrompt = document.getElementById('copyPrompt');
+
+  // set canvas size to container size responsively
+  function resizeCanvas(){
+    const rect = canvas.getBoundingClientRect();
+    const dpr = Math.max(1, window.devicePixelRatio || 1);
+    canvas.width = Math.floor(rect.width * dpr);
+    canvas.height = Math.floor(rect.height * dpr);
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+  }
+  window.addEventListener('resize', ()=>{resizeCanvas(); renderOnce=true});
+  resizeCanvas();
+
+  // ---------------------- Theme toggle ----------------------
+  themeToggle.addEventListener('click', ()=>{
+    const body = document.body;
+    const isDark = body.getAttribute('data-theme') === 'dark';
+    if(isDark){ body.setAttribute('data-theme','light'); themeToggle.setAttribute('aria-pressed','true'); }
+    else { body.setAttribute('data-theme','dark'); themeToggle.setAttribute('aria-pressed','false'); }
+  });
+
+  // ---------------------- State ----------------------
+  let state = {
+    mode: modeSelect.value,
+    density: Number(densityRange.value),
+    speed: Number(speedRange.value),
+    palette: paletteSelect.value,
+    seed: '',
+    playing: false,
+    time: 0,
+    lastTs: 0
+  };
+
+  // palettes
+  const palettes = {
+    aurora: ['#7C3AED','#06B6D4','#C084FC','#60A5FA','#34D399'],
+    sunset: ['#FF6B6B','#F59E0B','#F97316','#FB7185','#7C3AED'],
+    ocean: ['#0369A1','#06B6D4','#0EA5A3','#60A5FA','#7DD3FC'],
+    mono: ['#CBD5E1','#94A3B8','#64748B','#334155','#0F1724']
+  };
+
+  // session gallery (in-memory)
+  const sessionThumbs = [];
+
+  // seeded RNG factory
+  function makeRNG(seedStr){
+    if(!seedStr) seedStr = String(Date.now()) + Math.random();
+    const seed = sdbmHash(seedStr);
+    return xorshift32(seed);
+  }
+
+  // ---------------------- Generators: Modes ----------------------
+  // Each mode exposes: init(rng,width,height), update(dt), draw(ctx)
+
+  function ParticlesMode(rng,width,height,density){
+    const particles = [];
+    const n = Math.max(10, Math.min(2000, Math.floor(density)));
+    for(let i=0;i<n;i++){
+      particles.push({
+        x: rng()*width, y: rng()*height,
+        vx: (rng()-0.5)*0.6, vy: (rng()-0.5)*0.6,
+        size: 1 + rng()*3,
+        life: 20 + rng()*80,
+        hue: rng()
+      });
+    }
+    return {
+      update(dt, speed){
+        for(const p of particles){
+          p.x += p.vx * dt * 50 * speed;
+          p.y += p.vy * dt * 50 * speed;
+          p.x = (p.x + width) % width;
+          p.y = (p.y + height) % height;
+          p.life -= dt*speed;
+          if(p.life<=0){ p.x = rng()*width; p.y = rng()*height; p.life = 20 + rng()*80; }
+        }
+      },
+      draw(ctx,palette){
+        ctx.save();
+        for(const p of particles){
+          ctx.beginPath();
+          const col = palette[Math.floor(p.hue*palette.length) % palette.length];
+          ctx.fillStyle = col;
+          ctx.globalAlpha = 0.85;
+          ctx.arc(p.x, p.y, p.size, 0, Math.PI*2);
+          ctx.fill();
+        }
+        ctx.restore();
+      }
+    }
+  }
+
+  function FlowMode(rng,width,height,density){
+    // flow lines drawn from perlin-like vector field (simple gradient noise)
+    const field = [];
+    const cols = Math.max(10, Math.floor(Math.sqrt(density))*2);
+    const rows = Math.max(6, Math.floor(cols * (height/width)));
+    for(let y=0;y<rows;y++){
+      field[y]=[];
+      for(let x=0;x<cols;x++) field[y][x] = (rng()-0.5)*Math.PI*2;
+    }
+    const paths = [];
+    const pathCount = Math.max(20, Math.floor(density/6));
+    for(let i=0;i<pathCount;i++){
+      paths.push({x:rng()*width,y:rng()*height,life:60 + rng()*120,age:0});
+    }
+    return {
+      update(dt,speed){
+        for(const p of paths){
+          const gx = Math.floor((p.x/width)*(cols-1));
+          const gy = Math.floor((p.y/height)*(rows-1));
+          const ang = field[Math.max(0,Math.min(rows-1,gy))][Math.max(0,Math.min(cols-1,gx))];
+          p.x += Math.cos(ang) * 40 * dt * speed;
+          p.y += Math.sin(ang) * 40 * dt * speed;
+          p.age += dt*speed;
+          if(p.age>p.life || p.x<0||p.x>width||p.y<0||p.y>height){ p.x = rng()*width; p.y=rng()*height; p.age=0; p.life = 60 + rng()*120 }
+        }
+      },
+      draw(ctx,palette){
+        ctx.save();
+        ctx.lineWidth = 1.5; ctx.globalAlpha = 0.9;
+        for(const p of paths){
+          const idx = Math.floor((p.age%palette.length));
+          ctx.strokeStyle = palette[idx%palette.length];
+          ctx.beginPath();
+          ctx.moveTo(p.x-2,p.y-2);
+          ctx.lineTo(p.x+2,p.y+2);
+          ctx.stroke();
+        }
+        ctx.restore();
+      }
+    }
+  }
+
+  function MosaicMode(rng,width,height,density){
+    const cols = Math.max(6, Math.floor(Math.sqrt(density)));
+    const rows = Math.max(6, Math.floor(cols*(height/width)));
+    const tiles = [];
+    for(let y=0;y<rows;y++)for(let x=0;x<cols;x++){
+      tiles.push({x,y,w:width/cols,h:height/rows,seed:rng(),phase:rng()*Math.PI*2});
+    }
+    return {
+      update(dt,speed){
+        for(const t of tiles){ t.phase += dt*0.5*speed; }
+      },
+      draw(ctx,palette){
+        ctx.save();
+        for(const t of tiles){
+          const cx = (t.x+0.5)*t.w; const cy = (t.y+0.5)*t.h;
+          const s = 0.5 + 0.5*Math.sin(t.phase);
+          const col = palette[Math.floor(t.seed*palette.length)%palette.length];
+          ctx.fillStyle = col; ctx.globalAlpha = 0.9;
+          ctx.fillRect(cx - (t.w*s)/2, cy - (t.h*s)/2, t.w*s, t.h*s);
+        }
+        ctx.restore();
+      }
+    }
+  }
+
+  // ---------------------- Renderer Loop ----------------------
+  let generator = null; // current mode object
+  let rng = makeRNG('');
+  let renderOnce = true;
+  function initGenerator(){
+    const w = canvas.width / (window.devicePixelRatio||1);
+    const h = canvas.height / (window.devicePixelRatio||1);
+    rng = makeRNG(state.seed || String(Date.now()));
+    if(state.mode === 'particles') generator = ParticlesMode(rng,w,h,state.density);
+    if(state.mode === 'flow') generator = FlowMode(rng,w,h,state.density);
+    if(state.mode === 'mosaic') generator = MosaicMode(rng,w,h,state.density);
+    modePill.textContent = 'Mode: ' + (state.mode.charAt(0).toUpperCase() + state.mode.slice(1));
+    status.textContent = 'Ready';
+    renderOnce = true;
+  }
+
+  initGenerator();
+
+  function clearCanvas(){
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    // subtle background vignette
+    const w = canvas.width; const h = canvas.height;
+    const g = ctx.createLinearGradient(0,0,0,h);
+    g.addColorStop(0, 'rgba(0,0,0,0.08)'); g.addColorStop(1, 'rgba(0,0,0,0.02)');
+    ctx.fillStyle = g; ctx.fillRect(0,0,w,h);
+  }
+
+  let lastFrame = performance.now();
+  function frame(ts){
+    const dt = Math.min(0.1, (ts - lastFrame)/1000);
+    lastFrame = ts;
+    if(state.playing){
+      state.time += dt * state.speed;
+      // update
+      generator.update(dt, state.speed);
+      // draw
+      clearCanvas();
+      const pal = palettes[state.palette] || palettes.aurora;
+      generator.draw(ctx, pal);
+      // overlay subtle UI
+      renderOnce = true;
+    } else if(renderOnce){
+      // draw one frame for preview
+      clearCanvas();
+      const pal = palettes[state.palette] || palettes.aurora;
+      generator.draw(ctx, pal);
+      renderOnce = false;
+    }
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+
+  // ---------------------- Controls wiring ----------------------
+  modeSelect.addEventListener('change', (e)=>{ state.mode = e.target.value; initGenerator(); });
+  densityRange.addEventListener('input', (e)=>{ state.density = Number(e.target.value); initGenerator(); });
+  speedRange.addEventListener('input', (e)=>{ state.speed = Number(e.target.value); });
+  paletteSelect.addEventListener('change', (e)=>{ state.palette = e.target.value; renderOnce = true;});
+
+  seedInput.addEventListener('change', ()=>{ state.seed = seedInput.value.trim(); initGenerator(); });
+
+  playBtn.addEventListener('click', ()=>{ state.playing = true; status.textContent = 'Playing'; });
+  pauseBtn.addEventListener('click', ()=>{ state.playing = false; status.textContent = 'Paused'; renderOnce = true });
+
+  randomizeBtn.addEventListener('click', ()=>{ randomizeAll(); });
+  resetBtn.addEventListener('click', ()=>{ resetToDefault(); });
+
+  document.querySelectorAll('.preset').forEach(btn=>btn.addEventListener('click',(e)=>{ applyPreset(e.target.dataset.preset); }));
+
+  function randomizeAll(){
+    const seed = 'rand-' + Math.floor(Math.random()*1e9);
+    seedInput.value = seed; state.seed = seed;
+    state.density = Math.floor(20 + Math.random()*380);
+    densityRange.value = state.density;
+    state.speed = 0.6 + Math.random()*2;
+    speedRange.value = state.speed;
+    const keys = Object.keys(palettes);
+    state.palette = keys[Math.floor(Math.random()*keys.length)];
+    paletteSelect.value = state.palette;
+    const modes = ['particles','flow','mosaic']; state.mode = modes[Math.floor(Math.random()*modes.length)]; modeSelect.value = state.mode;
+    initGenerator();
+    status.textContent = 'Randomized';
+  }
+
+  function resetToDefault(){
+    seedInput.value = '';
+    state.seed = '';
+    state.density = 120; densityRange.value = 120;
+    state.speed = 1; speedRange.value = 1;
+    state.palette = 'aurora'; paletteSelect.value = 'aurora';
+    state.mode = 'particles'; modeSelect.value = 'particles';
+    initGenerator(); status.textContent = 'Reset';
+  }
+
+  function applyPreset(name){
+    if(name==='calm'){ state.density = 80; densityRange.value=80; state.speed=0.7; speedRange.value=0.7; state.palette='ocean'; paletteSelect.value='ocean'; state.mode='mosaic'; modeSelect.value='mosaic'; }
+    if(name==='vivid'){ state.density = 220; densityRange.value=220; state.speed=1.2; speedRange.value=1.2; state.palette='sunset'; paletteSelect.value='sunset'; state.mode='particles'; modeSelect.value='particles'; }
+    if(name==='chaos'){ state.density = 600; densityRange.value=600; state.speed=2.2; speedRange.value=2.2; state.palette='aurora'; paletteSelect.value='aurora'; state.mode='flow'; modeSelect.value='flow'; }
+    initGenerator(); status.textContent = 'Preset: ' + name;
+  }
+
+  // ---------------------- Snapshot + Gallery ----------------------
+  function snapshot(){
+    canvas.toBlob(blob=>{
+      const url = URL.createObjectURL(blob);
+      const img = new Image(); img.src = url;
+      img.onload = ()=>{
+        const thumb = document.createElement('div'); thumb.className='thumb';
+        const i = document.createElement('img'); i.src = url; thumb.appendChild(i);
+        thumb.addEventListener('click', ()=>{ window.open(url); });
+        gallery.prepend(thumb);
+        sessionThumbs.unshift(url);
+      }
+      // auto-download snapshot
+      const a = document.createElement('a'); a.href = url; a.download = `animforge-snapshot-${Date.now()}.png`; a.click();
+    }, 'image/png');
+  }
+  snapshotBtn.addEventListener('click', snapshot);
+
+  // ---------------------- Recording (WebM) ----------------------
+  let mediaRecorder = null; let recordedChunks = [];
+  recordBtn.addEventListener('click', async ()=>{
+    if(!navigator.mediaDevices || !window.MediaRecorder){
+      alert('Recording not supported in this browser.'); return;
+    }
+    if(mediaRecorder && mediaRecorder.state === 'recording'){
+      mediaRecorder.stop(); recordBtn.textContent = 'Record (WebM)'; return;
+    }
+    recordedChunks = [];
+    const stream = canvas.captureStream(60); // 60fps
+    mediaRecorder = new MediaRecorder(stream, {mimeType:'video/webm;codecs=vp9'});
+    mediaRecorder.ondataavailable = (e)=>{ if(e.data.size>0) recordedChunks.push(e.data); };
+    mediaRecorder.onstop = ()=>{
+      const blob = new Blob(recordedChunks, {type:'video/webm'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a'); a.href = url; a.download = `animforge-${Date.now()}.webm`; a.click();
+      // add a thumbnail from first video frame (snapshot)
+      canvas.toBlob(b=>{ const u = URL.createObjectURL(b); const thumb=document.createElement('div');thumb.className='thumb'; const img=document.createElement('img'); img.src=u; thumb.appendChild(img); gallery.prepend(thumb); sessionThumbs.unshift(u); }, 'image/png');
+      recordBtn.textContent = 'Record (WebM)';
+    };
+    mediaRecorder.start(); recordBtn.textContent='Stop Recording';
+  });
+
+  // ---------------------- Keyboard shortcuts ----------------------
+  window.addEventListener('keydown', (e)=>{
+    if(e.code==='Space'){ e.preventDefault(); state.playing = !state.playing; status.textContent = state.playing ? 'Playing' : 'Paused'; }
+    if(e.key==='r' || e.key==='R'){ randomizeAll(); }
+    if(e.key==='s' || e.key==='S'){ snapshot(); }
+  });
+
+  // ---------------------- Prompt dialog copy ----------------------
+  promptBtn.addEventListener('click', ()=>{ if(typeof promptDialog.showModal === 'function') promptDialog.showModal(); else alert(promptText); });
+  copyPrompt.addEventListener('click', ()=>{ navigator.clipboard.writeText(promptText).then(()=>{ copyPrompt.textContent='Copied!'; setTimeout(()=>copyPrompt.textContent='Copy Prompt',900); }); });
+
+  // ---------------------- Accessibility touches ----------------------
+  // ensure focus outline for keyboard users
+  document.addEventListener('keyup', (e)=>{ if(e.key==='Tab') document.body.classList.add('show-focus'); });
+
+  // Initialize UI with defaults
+  resetToDefault();
+
+  // ---------------------- Fallback messaging ----------------------
+  if(!canvas || !ctx) alert('Canvas not supported in this browser.');
+  if(!navigator.mediaDevices || !window.MediaRecorder) console.warn('Recording not supported: MediaRecorder or captureStream missing.');
+
+  </script>
+</body>
+</html>
